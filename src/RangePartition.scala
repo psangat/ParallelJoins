@@ -1,3 +1,4 @@
+import org.apache.spark.rdd.RDD
 import org.apache.spark.{TaskContext, RangePartitioner, SparkContext, SparkConf}
 
 /**
@@ -13,13 +14,13 @@ object RangePartition {
       val tc = TaskContext.get()
       part.foreach(x => println("Partition #" + tc.partitionId() + ", Value: " + x))
     })
-
+    countByPartition(sortedRDD).collect().foreach(println)
     // using range partition in sortedRDD
     val rp: RangePartitioner[Int, Int] = sortedRDD.partitioner.get.asInstanceOf[RangePartitioner[Int, Int]]
     // lower and upper values to search in the range
     val (lower, upper) = (1, 2)
     val range = rp.getPartition(lower) to rp.getPartition(upper)
-    println(range)
+    println("Search items are in " + range)
     val rangeFilter = (i: Int, iter: Iterator[(Int, Int)]) => {
       if (range.contains(i))
         for ((k, v) <- iter if k >= lower && k <= upper) yield (k, v)
@@ -27,5 +28,12 @@ object RangePartition {
         Iterator.empty
     }
     for ((k, v) <- sortedRDD.mapPartitionsWithIndex(rangeFilter, preservesPartitioning = true).collect()) println(s"$k, $v")
+  }
+
+  def countByPartition(rdd: RDD[(Int, Int)]) = {
+    rdd.mapPartitions(iter => {
+      val tc = TaskContext.get
+      Iterator(("Partition #" + tc.partitionId(), "Item Count: " + iter.length))
+    })
   }
 }
